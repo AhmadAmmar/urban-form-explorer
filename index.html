@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Urban form explorer</title>
+<meta name="description" content="Read the streets, buildings and places of any neighbourhood from OpenStreetMap: walkability, network structure, density, building form, access to everyday needs, cycling and public transport.">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="title" href="./">Urban form explorer</a>
+  <form id="search" role="search"><input id="q" type="search" placeholder="Go to a place" aria-label="Place name"><button>Go</button></form>
+  <nav><a href="methods.html">Methods</a><a href="https://ahmadammar.github.io/teaching/urban-form/">Guide and notebook</a><a href="https://github.com/AhmadAmmar/urban-form-explorer">Source</a></nav>
+</header>
+<main>
+  <div id="map" aria-label="Map"></div>
+  <aside id="panel">
+    <div class="controls">
+      <button id="analyse" disabled>Analyse this view</button>
+      <p id="zoom-hint" class="hint"></p>
+      <p id="status" class="hint" aria-live="polite"></p>
+      <p id="downloads" hidden><button id="dl-json" class="link">Results (JSON)</button> <button id="dl-geojson" class="link">Data (GeoJSON)</button></p>
+    </div>
+    <div id="report">
+      <h2>Read a neighbourhood from its map</h2>
+      <p class="lede">Pan to a place, zoom in until the button is ready, and press <b>Analyse this view</b>. The streets, buildings and places
+      mapped in OpenStreetMap for that area are fetched live and measured in your browser: how the streets connect and orient, how
+      densely and how tall the area is built, how near everyday needs are on foot, and how it serves cycling and public transport.</p>
+      <p>Nothing is stored and no account is needed. Each figure links to its definition on the <a href="methods.html">methods page</a>, and
+      the <a href="https://ahmadammar.github.io/teaching/urban-form/">guide</a> teaches the same measures step by step in a notebook.</p>
+      <h3>Map key after analysis</h3>
+      <ul class="key">
+        <li><span class="sw" style="background:#1b6e5a"></span>streets within 400 m walk of the centre, then 800, 1,200 m and beyond</li>
+        <li><span class="sw" style="background:#e3bf86"></span>buildings shaded by floors, light to dark; grey where floors are not mapped</li>
+        <li><span class="sw round" style="background:#1f3b73"></span>shops, services, schools, parks and stops (click for names)</li>
+        <li><span class="sw thick" style="background:#3c9a7d"></span>thicker lines: cycle lanes and tracks</li>
+      </ul>
+    </div>
+    <footer class="foot">Map data &copy; OpenStreetMap contributors (ODbL), via Overpass. Basemap: OpenFreeMap. Built by
+      <a href="https://ahmadammar.github.io/">Ahmad Ammar</a>.</footer>
+  </aside>
+</main>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script type="module" src="src/app.js"></script>
+</body>
+</html>

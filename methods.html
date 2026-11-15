@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Urban form methods</title>
+<meta name="description" content="How the Urban form explorer measures streets, buildings, access, cycling and transit from OpenStreetMap: formulas, assumptions and references.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>body { display: block; }</style>
+</head>
+<body>
+<header class="top">
+  <a class="title" href="./">Urban form explorer</a>
+  <nav><a href="./">Map</a><a href="https://ahmadammar.github.io/teaching/urban-form/">Guide and notebook</a><a href="https://github.com/AhmadAmmar/urban-form-explorer">Source</a></nav>
+</header>
+<article class="doc">
+<h1 style="font-family: var(--serif)">Methods</h1>
+<p>What each figure means, how it is calculated, and what it assumes. The code is in
+<a href="https://github.com/AhmadAmmar/urban-form-explorer/blob/main/src/metrics.js">src/metrics.js</a> and is checked against cases
+with known answers (a perfect grid, a circle, a square building) in
+<a href="https://github.com/AhmadAmmar/urban-form-explorer/blob/main/test/metrics.test.mjs">test/metrics.test.mjs</a>.</p>
+
+<h2 id="area">The area analysed</h2>
+<p>The frame is the visible map, reduced to at most 2 by 2 km around its centre. Streets and places are also fetched for 800 m around
+the frame, so that walking routes and the nearest shop are not cut off at its edge; buildings are counted when their centre lies inside
+the frame. All lengths and areas are computed in metres on a local flat projection centred on the frame (error under 0.1% at this size).
+Densities divide by the frame's area, which includes water and open land: a riverside frame reads as less dense.</p>
+
+<h2 id="data">The data, and what OpenStreetMap does not hold</h2>
+<p>OpenStreetMap (OSM) is mapped by volunteers. Streets are near-complete in most cities; buildings are complete in many but not all;
+heights, floors, widths and speed limits are often missing. Each section reports how much of the area is tagged. OSM holds no population
+counts, so there is no population figure here: use a census or a gridded product such as the Global Human Settlement Layer (GHSL) or
+WorldPop.</p>
+
+<h2>Streets</h2>
+<p>Streets are the OSM ways a pedestrian can use: every <code>highway=*</code> except motorways, trunk roads without a pavement,
+construction, and private or no-foot access. They are turned into a <b>graph</b>: <b>nodes</b> where streets end or meet, <b>edges</b>
+along the streets between them, as OSMnx does (Boeing 2017). Two networks are used. Measures of <b>structure</b> (length,
+intersections, streets per node, block edges, circuity, meshedness, orientation) use <b>streets proper</b>: carriageways from trunk roads to
+residential streets, living streets and pedestrian streets. Separately mapped pavements, crossings, paths, steps, cycleways and service
+roads are left out, because in places where mappers draw every pavement and crossing they would multiply the intersections several times
+over, and the measure would describe mapping style rather than the city. <b>Walking routes</b> (access to everyday needs, the walk
+distances on the map) use every walkable way, paths and pavements included.</p>
+<dl>
+<dt id="street-density">Street length and density</dt><dd>Total length of edges whose midpoint lies in the frame, and that length per km&sup2;.</dd>
+<dt id="intersection-density">Intersections</dt><dd>Nodes where three or more street ends meet, per km&sup2;. A standard measure of how finely the
+street network is divided: higher means more route choices and shorter blocks.</dd>
+<dt id="streets-per-node">Streets per node and dead ends</dt><dd>The mean number of street ends at each node (nodes where exactly two meet,
+simply a bend or a change of tags, are not counted). Dead ends are nodes with one street end. Two shares are given: for vehicles (the street ends) and on foot (the street ends and no
+path, crossing or square carries on from it). A gap between them is filtered permeability: streets closed to traffic but open to walking
+and cycling. The heading's "many cul-de-sacs" uses the share on foot. A frame edge can cut a street and create a false
+dead end; counting only nodes inside the frame, with the network fetched beyond it, avoids this.</dd>
+<dt id="segment-length">Block edge length</dt><dd>Mean edge length: a proxy for block size along the street.</dd>
+<dt id="circuity">Circuity and route directness</dt><dd>Circuity is the total edge length divided by the total straight-line distance
+between each edge's ends (1 for straight streets). Route directness takes up to 480 random pairs of intersections 300 to 1,500 m apart and
+divides the shortest network distance by the straight-line distance; the median is shown. A value of 1.3 means a typical walk is 30% longer
+than as the crow flies; a perfect grid gives about 1.27 on average for random directions.</dd>
+<dt id="meshedness">Meshedness</dt><dd>&alpha; = (e &minus; v + 1) / (2v &minus; 5), the number of independent loops relative to the most a planar
+network of that size can have (Buhl et al. 2006): 0 for a tree (cul-de-sac estates), towards 1 for a dense mesh.</dd>
+<dt id="orientation">Orientation order</dt><dd>Street bearings, each segment counted in both directions and weighted by length, are binned in
+36 bins of 10&deg;. Their Shannon entropy H is compared with a perfect grid (all length in 4 bins, H<sub>g</sub> = ln 4) and with complete
+disorder (H<sub>max</sub> = ln 36):
+<p class="formula">&phi; = 1 &minus; ((H &minus; H<sub>g</sub>) / (H<sub>max</sub> &minus; H<sub>g</sub>))&sup2;</p>
+which runs from 0 (no prevailing direction) to 1 (a perfect grid) (Boeing 2019). The rose diagram shows the bins.</dd>
+<dt id="width">Street width</dt><dd>From <code>width</code> where tagged; otherwise <code>lanes</code> &times; 3 m (an assumption, stated);
+otherwise unknown. The median of the streets that have either is shown, with how many do.</dd>
+</dl>
+
+<h2>Buildings</h2>
+<p>Buildings are often mapped years after streets. When buildings cover under 12% of the frame although it has more than 80 intersections
+per km&sup2;, the analysis warns that buildings look incompletely mapped.</p>
+<dl>
+<dt id="buildings">Count and density</dt><dd>Building outlines (<code>building=*</code>, including the outer rings of multipolygons) whose centre is in
+the frame, per hectare.</dd>
+<dt id="footprint">Footprints</dt><dd>Area of each outline by the shoelace formula; mean and median.</dd>
+<dt id="heights">Heights and floors</dt><dd>Floors from <code>building:levels</code>; otherwise from <code>height</code> &divide; 3 m, rounded.
+Height from <code>height</code>; otherwise floors &times; 3 m.</dd>
+<dt id="spacematrix">Spacematrix: GSI, FSI, L and OSR</dt><dd>Berghauser Pont and Haupt (2010) describe density by four linked numbers:
+<p class="formula">GSI = footprint area / frame area &nbsp; FSI = floor area / frame area &nbsp; L = FSI / GSI &nbsp; OSR = (1 &minus; GSI) / FSI</p>
+GSI is ground coverage; FSI the floor area ratio (floor space index); L the mean number of floors; OSR the open space per square metre of
+floor. Floor area is footprint &times; floors. Where floors are not tagged, the building is given the median of tagged buildings in the
+frame, and FSI is reported only if at least 20% of buildings are tagged; the method used is printed beside it. The label simplifies the
+Spacematrix: <i>spacious</i> (GSI &lt; 0.15), <i>compact</i> (0.15&ndash;0.35), <i>very compact</i> (&gt; 0.35); <i>low-rise</i>
+(L &lt; 3), <i>mid-rise</i> (3&ndash;6), <i>high-rise</i> (&gt; 6). Frames include streets and open land, so these are gross, not
+plot, densities.</dd>
+</dl>
+
+<h2>Places, access and indices</h2>
+<dl>
+<dt id="mix">Mix of uses</dt><dd>Places are sorted into eight kinds (groceries; eating and drinking; education; health; parks and play;
+other shops; services and civic; culture), from OSM <code>amenity</code>, <code>shop</code>, <code>leisure</code>, <code>healthcare</code>
+and <code>tourism</code> tags. The mix is their Shannon entropy divided by ln 8: 0 if all places are of one kind, 1 if all kinds are equally
+common.</dd>
+<dt id="access">Everyday needs on foot</dt><dd>From the street node nearest the frame's centre, the shortest walk along streets (plus the straight
+gaps to and from the network) to the nearest place of each everyday kind, public transport included. Each kind scores 1 within 400 m,
+falling linearly to 0 at 1,600 m (5 and 20 minutes at 4.8 km/h); the index is the mean score &times; 100. The count of kinds within
+1,200 m (15 minutes) follows the idea of the 15-minute city (Moreno et al. 2021). The decay is modelled on that used by commercial walk
+scores, but this is not any proprietary score.</dd>
+<dt id="walkability">Walkability</dt><dd>The mean of three parts, each 0&ndash;1: connectivity (intersection density &divide; 150 per
+km&sup2;, capped at 1), land-use mix, and access to everyday needs. This follows the structure of research walkability indices (Frank et al.
+2010: connectivity, mix and density), without residential density, which OSM cannot give.</dd>
+<dt id="cyclability">Cyclability</dt><dd>0.5 &times; cycle infrastructure (length of carriageways with a cycle lane or track, plus separate cycleways,
+as a share of carriageway length, divided by 0.3 and capped at 1; paths shared with pedestrians, bus lanes open to cycles, and tags saying the track is mapped separately are not
+counted, the last to avoid counting one track twice) + 0.3 &times; share of speed-tagged streets limited to 30 km/h (20 mph) or less + 0.2 &times;
+connectivity. The weights are a judgement, shown so they can be argued with; the parts are shown beside the index.</dd>
+<dt id="transit">Public transport</dt><dd>Bus stops, platforms, tram stops and stations within 400 m of the centre, and rail or metro
+stations within 800 m, straight-line. OSM rarely holds timetables, so frequency, the most important part of transit access, is not measured.</dd>
+</dl>
+
+<h2>Neighbourhood type</h2>
+<p>The heading of each analysis combines four readings: streets grid-like (&phi; &gt; 0.5), semi-regular (0.2&ndash;0.5) or irregular
+(&lt; 0.2); many cul-de-sacs (dead ends over 25%) or finely connected (over 120 intersections per km&sup2;); the Spacematrix label; and
+mixed uses (mix over 0.6), some mixed uses (0.3&ndash;0.6) or mostly single use. It is a description, not a classification learned from data.</p>
+
+<h2>References</h2>
+<ul>
+<li>Berghauser Pont, M. and Haupt, P. (2010). <i>Spacematrix: Space, Density and Urban Form</i>. Rotterdam: NAi Publishers.</li>
+<li>Boeing, G. (2017). OSMnx: New methods for acquiring, constructing, analyzing, and visualizing complex street networks. <i>Computers,
+Environment and Urban Systems</i> 65, 126&ndash;139. <a href="https://doi.org/10.1016/j.compenvurbsys.2017.05.004">doi:10.1016/j.compenvurbsys.2017.05.004</a></li>
+<li>Boeing, G. (2019). Urban spatial order: street network orientation, configuration, and entropy. <i>Applied Network Science</i> 4, 67.
+<a href="https://doi.org/10.1007/s41109-019-0189-1">doi:10.1007/s41109-019-0189-1</a></li>
+<li>Buhl, J. et al. (2006). Topological patterns in street networks of self-organized urban settlements. <i>The European Physical Journal
+B</i> 49, 513&ndash;522. <a href="https://doi.org/10.1140/epjb/e2006-00085-1">doi:10.1140/epjb/e2006-00085-1</a></li>
+<li>Fleischmann, M. (2019). momepy: Urban Morphology Measuring Toolkit. <i>Journal of Open Source Software</i> 4(43), 1807.
+<a href="https://doi.org/10.21105/joss.01807">doi:10.21105/joss.01807</a></li>
+<li>Frank, L. D. et al. (2010). The development of a walkability index: application to the Neighborhood Quality of Life Study.
+<i>British Journal of Sports Medicine</i> 44, 924&ndash;933. <a href="https://doi.org/10.1136/bjsm.2009.058701">doi:10.1136/bjsm.2009.058701</a></li>
+<li>Moreno, C. et al. (2021). Introducing the &ldquo;15-Minute City&rdquo;. <i>Smart Cities</i> 4(1), 93&ndash;111.
+<a href="https://doi.org/10.3390/smartcities4010006">doi:10.3390/smartcities4010006</a></li>
+</ul>
+<p class="small">Map data &copy; OpenStreetMap contributors, available under the Open Database Licence.</p>
+</article>
+</body>
+</html>
